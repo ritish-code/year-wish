@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>A Golden Wish</title>
+    
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/Draggable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- CORE STYLES --- */
+        :root {
+            --bg-deep: #050505;
+            --gold-primary: #D4AF37;
+            --gold-light: #F7E7CE;
+            --gold-dark: #AA8C2C;
+            --rose-gold: #E6A5AC;
+            --velvet: #1a0b0f;
+            --font-main: 'Playfair Display', serif;
+            --font-accent: 'Cinzel', serif;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, #1a1a1a 0%, #000000 100%);
+            color: var(--gold-primary);
+            font-family: var(--font-main);
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- UI ELEMENTS --- */
+        .stage {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 1s ease;
+            padding: 20px;
+        }
+
+        .stage.active {
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        h2 {
+            font-family: var(--font-accent);
+            font-size: 1.8rem;
+            text-align: center;
+            margin-bottom: 10px;
+            background: linear-gradient(to right, var(--gold-light), var(--gold-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        p.instruction {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 20px;
+            font-style: italic;
+            text-align: center;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        /* --- STAGE 1: PUZZLE --- */
+        .puzzle-container {
+            position: relative;
+            width: 300px;
+            height: 300px;
+            box-sizing: content-box; 
+            border: 4px double var(--gold-dark);
+            background: rgba(255, 255, 255, 0.05);
+            box-shadow: 0 0 30px rgba(212, 175, 55, 0.1);
+        }
+        /* The Ghost Image (Guide) */
+        .puzzle-container::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-image: var(--bg-image);
+            background-size: 300px 300px;
+            opacity: 0.2;
+            pointer-events: none;
+            z-index: 0;
+            filter: grayscale(100%);
+        }
+        .puzzle-piece {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background-size: 300px 300px;
+            cursor: grab;
+            border: 1px solid rgba(212, 175, 55, 0.5);
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.8);
+            z-index: 100;
+            top: 0; left: 0; 
+        }
+        .puzzle-piece:active { cursor: grabbing; z-index: 1000 !important; }
+
+        /* --- STAGE 2: TREE --- */
+        .tree-stage-container {
+            position: relative;
+            width: 100%;
+            height: 500px; /* Taller for canopy */
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            overflow: visible;
+        }
+        .tree-svg {
+            width: 200px;
+            height: 300px;
+            filter: drop-shadow(0 0 10px rgba(62, 39, 35, 0.8));
+            overflow: visible;
+            position: absolute;
+            bottom: 0;
+            z-index: 1;
+        }
+        .tree-path {
+            fill: #3e2723;
+            stroke: #251614;
+            stroke-width: 2;
+        }
+        /* Target where leaf must touch */
+        .branch-target {
+            position: absolute;
+            width: 80px; height: 80px;
+            bottom: 180px; left: 50%;
+            transform: translateX(-50%);
+            border-radius: 50%;
+            border: 2px dashed rgba(212,175,55,0.3);
+            animation: pulse-target 2s infinite;
+            z-index: 0;
+        }
+        /* MAIN DRAGGABLE LEAF */
+        .magic-leaf {
+            width: 40px;
+            height: 40px;
+            background: var(--gold-primary);
+            position: absolute;
+            bottom: 50px;
+            left: 50%;
+            transform: translate(-50%, 0) rotate(45deg);
+            cursor: pointer;
+            border-radius: 50% 50% 0 0;
+            clip-path: path('M 20 0 C 35 -10, 55 10, 20 35 C -15 10, 5 -10, 20 0 Z');
+            box-shadow: 0 0 20px var(--gold-primary);
+            z-index: 50;
+        }
+        /* Generated Leaves */
+        .heart-leaf {
+            position: absolute;
+            width: 18px;
+            height: 18px;
+            background: var(--rose-gold);
+            transform: rotate(45deg);
+            border-radius: 50% 50% 0 0;
+            clip-path: path('M 9 0 C 16.5 -4.5, 25.5 4.5, 9 18 C -7.5 4.5, 1.5 -4.5, 9 0 Z');
+            opacity: 0;
+            z-index: 10;
+            box-shadow: inset 0 0 5px rgba(0,0,0,0.2);
+        }
+
+        @keyframes pulse-target { 0% { opacity: 0.1; scale: 0.9; } 50% { opacity: 0.5; scale: 1.1; } 100% { opacity: 0.1; scale: 0.9; } }
+
+        /* --- STAGE 3: SWASTIK DRAWING --- */
+        .sky-canvas-container {
+            position: relative;
+            width: 320px; height: 320px;
+            /* Border for debugging visually, hidden in production look */
+            background: radial-gradient(circle at center, rgba(212,175,55,0.05), rgba(0,0,0,0));
+            border-radius: 20px;
+        }
+        /* The actual drawing canvas */
+        #drawingCanvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 50;
+            cursor: crosshair;
+            touch-action: none; /* Prevent scroll while drawing */
+        }
+        .star-guide {
+            width: 10px; height: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 10;
+        }
+        .star-guide.hit {
+            background: var(--gold-primary);
+            box-shadow: 0 0 15px var(--gold-primary);
+            transition: all 0.3s;
+        }
+        .reset-btn {
+            margin-top: 15px;
+            background: transparent;
+            border: 1px solid #555;
+            color: #777;
+            padding: 5px 15px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            border-radius: 20px;
+            transition: 0.3s;
+        }
+        .reset-btn:hover { border-color: var(--gold-primary); color: var(--gold-primary); }
+
+        /* --- STAGE 4: HANDS DRAG --- */
+        .hands-container {
+            width: 100%;
+            height: 300px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .hand-wrapper {
+            position: absolute;
+            font-size: 6rem;
+            filter: drop-shadow(0 0 10px rgba(0,0,0,0.5));
+            cursor: grab;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .hand-wrapper:active { cursor: grabbing; }
+        .hand-label {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.4);
+            margin-top: 10px;
+            font-family: var(--font-accent);
+            opacity: 0.6;
+        }
+        
+        #handLWrapper { left: 10%; } /* Static target */
+        #handRWrapper { right: 10%; } /* Draggable */
+
+        #handL { transform: scaleX(1); }
+        #handR { transform: scaleX(-1); }
+
+        .promise-lock {
+            position: absolute;
+            font-size: 4rem;
+            color: var(--gold-primary);
+            opacity: 0;
+            transform: scale(0);
+            z-index: 20;
+            text-shadow: 0 0 30px var(--gold-light);
+        }
+
+        /* --- STAGE 5: FINALE --- */
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .god-input {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid var(--gold-primary);
+            color: var(--gold-light);
+            font-family: var(--font-accent);
+            font-size: 2rem;
+            text-align: center;
+            width: 250px;
+            outline: none;
+            padding: 10px;
+            text-transform: uppercase;
+        }
+        .god-input::placeholder { color: rgba(212, 175, 55, 0.3); font-size: 1.5rem; }
+        .reveal-btn {
+            padding: 10px 30px;
+            background: var(--gold-primary);
+            color: var(--bg-deep);
+            border: none;
+            font-family: var(--font-accent);
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: transform 0.2s;
+        }
+        .final-text {
+            font-family: var(--font-accent);
+            font-size: 2.5rem;
+            text-align: center;
+            background: linear-gradient(45deg, var(--gold-primary), #fff, var(--gold-primary));
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: shine 3s linear infinite;
+            margin-bottom: 20px;
+            display: none;
+        }
+        .sub-text {
+            font-size: 1.2rem;
+            letter-spacing: 2px;
+            color: var(--rose-gold);
+            text-transform: uppercase;
+            text-align: center;
+            display: none;
+        }
+        @keyframes shine { to { background-position: 200% center; } }
+        
+        /* Particle */
+        .particle {
+            position: fixed;
+            background: white;
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            z-index: 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Background Ambience -->
+    <div id="ambient-bg"></div>
+
+    <!-- STAGE 1: THE PUZZLE -->
+    <div id="stage1" class="stage active">
+        <h2>Find yourself</h2>
+        <p class="instruction">Drag the pieces into the frame to restore the memory.</p>
+        <div class="puzzle-container" id="puzzleBoard"></div>
+    </div>
+
+    <!-- STAGE 2: THE TREE -->
+    <div id="stage2" class="stage">
+        <h2>Pour some love in the life</h2>
+        <p class="instruction">Drag the Golden Seed to the tree to bloom a heart.</p>
+        <div class="tree-stage-container" id="treeContainer">
+            <!-- SVG Organic Tree -->
+            <svg class="tree-svg" viewBox="0 0 200 300" preserveAspectRatio="none">
+                <path class="tree-path" d="M100,300 Q80,250 90,200 Q70,150 40,140 M90,200 Q110,150 160,130 M95,220 Q100,180 100,100" fill="none" stroke-width="20" stroke-linecap="round" />
+                <path class="tree-path" d="M100,300 L90,200 L100,100" stroke-width="25" stroke="#3e2723" />
+            </svg>
+            <div class="branch-target" id="branchTarget"></div>
+            <!-- Magic Seed/Leaf -->
+            <div class="magic-leaf" id="magicLeaf"></div>
+        </div>
+    </div>
+
+    <!-- STAGE 3: SWASTIK DRAWING -->
+    <div id="stage3" class="stage">
+        <h2>Add some shubh vichaar</h2>
+        <p class="instruction">Draw the complete Swastik connecting all the stars.</p>
+        
+        <div class="sky-canvas-container" id="skyContainer">
+            <canvas id="drawingCanvas" width="320" height="320"></canvas>
+            <!-- Guide dots (visually subtle) -->
+            <!-- We will generate these via JS to match coordinates -->
+        </div>
+        <button class="reset-btn" onclick="resetCanvas()">Clear & Try Again</button>
+    </div>
+
+    <!-- STAGE 4: HANDS DRAG -->
+    <div id="stage4" class="stage">
+        <h2>Make good promises to yourself</h2>
+        <p class="instruction">Drag the right hand to hold the left hand.</p>
+        
+        <div class="hands-container">
+            <div class="hand-wrapper" id="handLWrapper">
+                <span id="handL">🫱</span>
+                <span class="hand-label">Your Soul</span>
+            </div>
+            
+            <div class="hand-wrapper" id="handRWrapper">
+                <span id="handR">🫱</span> <!-- Facing same way initially, flips on contact or change -->
+                <span class="hand-label">Your Will</span>
+            </div>
+
+            <div class="promise-lock" id="promiseLock">🔒</div>
+        </div>
+    </div>
+
+    <!-- STAGE 5: FINALE -->
+    <div id="stage5" class="stage">
+        <h2>Who is almighty?</h2>
+        <div class="input-group" id="inputGroup">
+            <input type="text" class="god-input" id="godInput" placeholder="Enter answer...">
+            <button class="reveal-btn" onclick="checkGod()">Reveal</button>
+        </div>
+        
+        <div class="final-text" id="wishesMain">May the Divine Light guide your path.</div>
+        <div class="sub-text" id="wishesSub">
+            Sarva Manokamna Purna Bhavatu.<br>
+            (May all your wishes be fulfilled).<br>
+            Prosperous 2026.
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const imageSrc = "1000206447.jpg"; 
+        document.documentElement.style.setProperty('--bg-image', `url(${imageSrc})`);
+
+        // --- GLOBAL STATE ---
+        let currentStage = 1;
+
+        function nextStage() {
+            const oldStage = document.getElementById(`stage${currentStage}`);
+            currentStage++;
+            const newStage = document.getElementById(`stage${currentStage}`);
+
+            if (newStage) {
+                gsap.to(oldStage, {
+                    opacity: 0, y: -50, duration: 0.8, ease: "power2.in",
+                    onComplete: () => {
+                        oldStage.classList.remove('active');
+                        newStage.classList.add('active');
+                        gsap.fromTo(newStage, 
+                            { opacity: 0, y: 50 }, 
+                            { opacity: 1, y: 0, duration: 0.8, ease: "power2.out" }
+                        );
+                        if(currentStage === 3) initDrawingCanvas();
+                        if(currentStage === 4) initHandDrag();
+                    }
+                });
+            }
+        }
+
+        // --- STAGE 1: PUZZLE LOGIC ---
+        const puzzleBoard = document.getElementById('puzzleBoard');
+        const gridSize = 3; 
+        const pieceSize = 100;
+        let piecesCorrect = 0;
+
+        function initPuzzle() {
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const zone = document.createElement('div');
+                    zone.classList.add('drop-zone');
+                    zone.style.position = 'absolute'; // Ensure absolute positioning
+                    zone.style.width = '100px'; zone.style.height = '100px';
+                    zone.style.left = `${x * pieceSize}px`;
+                    zone.style.top = `${y * pieceSize}px`;
+                    puzzleBoard.appendChild(zone);
+                }
+            }
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    const piece = document.createElement('div');
+                    piece.classList.add('puzzle-piece');
+                    piece.style.backgroundImage = `url(${imageSrc})`;
+                    piece.style.backgroundPosition = `-${x * pieceSize}px -${y * pieceSize}px`;
+                    piece.dataset.correctX = x * pieceSize;
+                    piece.dataset.correctY = y * pieceSize;
+                    document.getElementById('stage1').appendChild(piece);
+                    
+                    gsap.set(piece, { 
+                        x: (Math.random() - 0.5) * 300, 
+                        y: 200 + (Math.random() * 200) 
+                    });
+                    makeDraggable(piece);
+                }
+            }
+        }
+
+        function makeDraggable(element) {
+            Draggable.create(element, {
+                type: "x,y",
+                edgeResistance: 0.65,
+                bounds: window,
+                inertia: true,
+                onDragEnd: function() {
+                    const rect = this.target.getBoundingClientRect();
+                    const boardRect = puzzleBoard.getBoundingClientRect();
+                    const relX = rect.left - boardRect.left; 
+                    const relY = rect.top - boardRect.top;   
+                    const correctX = parseInt(this.target.dataset.correctX);
+                    const correctY = parseInt(this.target.dataset.correctY);
+
+                    if (Math.abs(relX - correctX) < 40 && Math.abs(relY - correctY) < 40) {
+                        this.disable();
+                        puzzleBoard.appendChild(this.target);
+                        gsap.set(this.target, { x: 0, y: 0, left: correctX, top: correctY });
+                        gsap.from(this.target, {scale: 1.1, duration: 0.2});
+                        this.target.style.zIndex = 1;
+                        this.target.style.border = "none"; 
+                        piecesCorrect++;
+                        playSound('snap');
+
+                        if (piecesCorrect === 9) {
+                            setTimeout(() => {
+                                gsap.to(puzzleBoard, {boxShadow: "0 0 50px white", duration: 0.5, yoyo: true, repeat: 1});
+                                setTimeout(nextStage, 1500);
+                            }, 500);
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- STAGE 2: HEART TREE LOGIC ---
+        gsap.set("#magicLeaf", { y: 0, x: -100 }); 
+
+        Draggable.create("#magicLeaf", {
+            type: "x,y",
+            bounds: "#stage2",
+            onDragEnd: function() {
+                if (this.hitTest("#branchTarget", "50%")) {
+                    bloomHeartTree(this.target);
+                } else {
+                    gsap.to(this.target, {x: -100, y: 0, duration: 0.5, ease: "power2.out"});
+                }
+            }
+        });
+
+        function bloomHeartTree(seed) {
+            gsap.to(seed, {scale: 0, opacity: 0, duration: 0.4});
+            playSound('chime');
+
+            const container = document.getElementById('treeContainer');
+            // We want the heart canopy to be centered horizontally in the container
+            // and positioned above the trunk.
+            // SVG Trunk top is roughly at container coordinates: x=50%, y=bottom-200px.
+            
+            const centerX = container.offsetWidth / 2;
+            const centerY = container.offsetHeight - 280; // Lifted up
+            
+            // Heart Equation filling
+            const scale = 12; // Size of the heart
+            const step = 0.8; // Density of leaves (lower is denser)
+            
+            const colors = ['#D4AF37', '#E6A5AC', '#B76E79', '#FFD700', '#C5B358'];
+
+            // We scan a grid from t=-3 to 3 approx
+            // Standard Heart parametric:
+            // x = 16 sin^3(t)
+            // y = 13 cos(t) - 5 cos(2t) - 2 cos(3t) - cos(4t)
+            // But we need to FILL it. A grid scan is better for non-overlapping.
+            
+            let leaves = [];
+
+            for (let y = 15; y > -15; y -= step) {
+                for (let x = -20; x < 20; x += step) {
+                    // Invert Y for screen coords logic
+                    // Heart inequality roughly: (x^2 + y^2 - 1)^3 - x^2*y^3 <= 0
+                    // We need to normalize x and y to range roughly -1.5 to 1.5 for the formula
+                    
+                    let nx = x / 8; 
+                    let ny = y / 8;
+                    
+                    // The inequality for heart shape
+                    let val = Math.pow(nx*nx + ny*ny - 1, 3) - nx*nx * Math.pow(ny, 3);
+                    
+                    if (val <= 0) {
+                        // It's inside the heart!
+                        leaves.push({x: x * scale, y: -y * scale}); // Flip Y for CSS
+                    }
+                }
+            }
+
+            // Shuffle leaves slightly for organic appearance of appearing
+            leaves.sort(() => Math.random() - 0.5);
+
+            leaves.forEach((pos, i) => {
+                const leaf = document.createElement('div');
+                leaf.classList.add('heart-leaf');
+                leaf.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                // Set final position
+                leaf.style.left = (centerX + pos.x) + 'px';
+                leaf.style.top = (centerY + pos.y) + 'px';
+                
+                // Add jitter
+                const rot = (Math.random() * 60) - 30 + 45; // Base 45 + jitter
+                
+                container.appendChild(leaf);
+
+                gsap.fromTo(leaf, 
+                    { scale: 0, y: "+=100", opacity: 0 },
+                    { 
+                        scale: Math.random() * 0.5 + 0.5, 
+                        y: 0, 
+                        opacity: 1, 
+                        rotation: rot,
+                        duration: 1, 
+                        ease: "back.out(1.7)", 
+                        delay: i * 0.002 // Staggered bloom
+                    }
+                );
+            });
+
+            setTimeout(nextStage, 4000);
+        }
+
+        // --- STAGE 3: FREEHAND SWASTIK ---
+        let canvas, ctx;
+        let isDrawing = false;
+        let visitedPoints = new Set();
+        const gridPoints = [];
+
+        function initDrawingCanvas() {
+            canvas = document.getElementById('drawingCanvas');
+            ctx = canvas.getContext('2d');
+            const container = document.getElementById('skyContainer');
+            
+            // Set canvas resolution
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#D4AF37'; // Gold
+            ctx.lineWidth = 8;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#FFD700';
+
+            // Define 3x3 Grid Points
+            const step = canvas.width / 4;
+            for(let r=1; r<=3; r++) {
+                for(let c=1; c<=3; c++) {
+                    const px = c * step;
+                    const py = r * step;
+                    gridPoints.push({x: px, y: py, id: `${r}-${c}`});
+                    
+                    // Create visual guide dot
+                    const dot = document.createElement('div');
+                    dot.classList.add('star-guide');
+                    dot.style.left = px + 'px';
+                    dot.style.top = py + 'px';
+                    dot.id = `dot-${r}-${c}`;
+                    container.appendChild(dot);
+                }
+            }
+
+            // Events
+            canvas.addEventListener('mousedown', startDraw);
+            canvas.addEventListener('mousemove', draw);
+            canvas.addEventListener('mouseup', endDraw);
+            canvas.addEventListener('touchstart', (e) => startDraw(e.touches[0]));
+            canvas.addEventListener('touchmove', (e) => { e.preventDefault(); draw(e.touches[0]); });
+            canvas.addEventListener('touchend', endDraw);
+        }
+
+        function startDraw(e) {
+            const rect = canvas.getBoundingClientRect();
+            isDrawing = true;
+            ctx.beginPath();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+            checkCollision(e.clientX - rect.left, e.clientY - rect.top);
+        }
+
+        function draw(e) {
+            if(!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            // Add particles randomly
+            if(Math.random() > 0.8) {
+                createSparkle(x, y);
+            }
+            
+            checkCollision(x, y);
+        }
+
+        function endDraw() {
+            isDrawing = false;
+            validateSwastik();
+        }
+
+        function checkCollision(x, y) {
+            // Check if close to any grid point
+            gridPoints.forEach(p => {
+                const dist = Math.hypot(p.x - x, p.y - y);
+                if(dist < 30) { // Hit radius slightly increased for better UX
+                    if(!visitedPoints.has(p.id)) {
+                        visitedPoints.add(p.id);
+                        const dot = document.getElementById(`dot-${p.id}`);
+                        dot.classList.add('hit');
+                        playSound('ting');
+                        
+                        // Flash effect on hit
+                        gsap.fromTo(dot, {scale: 2}, {scale: 1, duration: 0.3});
+                    }
+                }
+            });
+        }
+
+        function createSparkle(x, y) {
+            // Simple canvas sparkle or DOM? DOM is easier to animate with GSAP
+            // But let's keep canvas performant. We'll skip complex particles here for speed.
+        }
+
+        function validateSwastik() {
+            // A COMPLETE Swastik on a 3x3 grid touches all 9 points (4 tips, 4 cross-points, 1 center).
+            if(visitedPoints.size === 9) {
+                // Success
+                canvas.style.pointerEvents = 'none';
+                gsap.to('.star-guide', {scale: 0, opacity: 0, duration: 0.5});
+                
+                // Glow effect on canvas
+                gsap.to(canvas, {filter: "drop-shadow(0 0 20px gold)", duration: 1, yoyo: true, repeat: 1});
+                
+                setTimeout(() => {
+                    nextStage();
+                }, 1500);
+            }
+        }
+
+        function resetCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            visitedPoints.clear();
+            document.querySelectorAll('.star-guide').forEach(el => el.classList.remove('hit'));
+            canvas.style.pointerEvents = 'auto';
+        }
+
+
+        // --- STAGE 4: HANDS DRAG ---
+        function initHandDrag() {
+            const handRWrapper = document.getElementById('handRWrapper');
+            const handLWrapper = document.getElementById('handLWrapper');
+            const lock = document.getElementById('promiseLock');
+            
+            // Flip Right hand to look like it wants to hold Left hand (Back of hand vs Palm logic depends on emoji)
+            // 🫱 Rightwards Hand. 
+            // Left wrapper has 🫱 (Normal). Right wrapper has 🫱 flipped (-1 scale).
+            // They face each other.
+            
+            Draggable.create(handRWrapper, {
+                type: "x,y",
+                bounds: ".hands-container",
+                inertia: true,
+                onDrag: function() {
+                    // Check overlap
+                    if (this.hitTest(handLWrapper, "30%")) {
+                        // Snap Logic
+                        this.endDrag();
+                        this.disable();
+                        
+                        // Animate Holding Hands
+                        // Move HandR to position
+                        const rectL = handLWrapper.getBoundingClientRect();
+                        const containerRect = document.querySelector('.hands-container').getBoundingClientRect();
+                        
+                        // Calculate relative position to overlap nicely
+                        const targetX = (rectL.left - containerRect.left) + 40; // Slight offset
+                        const targetY = (rectL.top - containerRect.top);
+
+                        gsap.to(handRWrapper, {
+                            x: targetX - (parseFloat(handRWrapper.style.left) || containerRect.width*0.9), // Calculate delta from css left/right logic roughly or just let gsap handle x/y
+                            // Actually, let's just animate to exact coord relative to start
+                            x: -(containerRect.width * 0.8) + 60, // Rough calculation: Right(90%) to Left(10%) distance
+                            y: 0,
+                            rotation: -10,
+                            duration: 0.5,
+                            ease: "back.out",
+                            onComplete: () => {
+                                finalizePromise();
+                            }
+                        });
+                        
+                        gsap.to(handLWrapper, {rotation: 10, duration: 0.5});
+                    }
+                }
+            });
+        }
+
+        function finalizePromise() {
+            const handL = document.getElementById('handL');
+            const handR = document.getElementById('handR');
+            const lock = document.getElementById('promiseLock');
+
+            playSound('snap');
+            
+            // Change emojis to handshake or holding
+            // Or just keep them overlayed.
+            
+            // Flash
+            const flash = document.createElement('div');
+            flash.style.position = 'absolute';
+            flash.style.top = '0'; flash.style.left = '0';
+            flash.style.width = '100vw'; flash.style.height = '100vh';
+            flash.style.backgroundColor = 'white';
+            flash.style.zIndex = '1000';
+            flash.style.opacity = '0';
+            flash.style.pointerEvents = 'none';
+            document.body.appendChild(flash);
+            
+            gsap.to(flash, {opacity: 1, duration: 0.1, yoyo: true, repeat: 1, onComplete: () => flash.remove()});
+
+            // Lock Animation
+            gsap.to(lock, {
+                opacity: 1, 
+                scale: 1.5, 
+                duration: 1, 
+                ease: "elastic.out(1, 0.3)",
+                delay: 0.2
+            });
+
+            // Particles burst
+            confetti({
+                particleCount: 50,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#D4AF37', '#FFF']
+            });
+
+            setTimeout(nextStage, 3000);
+        }
+
+
+        // --- STAGE 5: FINALE ---
+        function checkGod() {
+            const input = document.getElementById('godInput');
+            // Allow generic answers for god, or self
+            const ans = input.value.trim().toUpperCase();
+            if(ans === "GOD" || ans === "ALMIGHTY" || ans === "ME" || ans === "MYSELF" || ans === "I AM" || ans === "SHIVA" || ans === "KRISHNA") {
+                document.getElementById('inputGroup').style.display = 'none';
+                document.querySelector('#stage5 h2').style.display = 'none';
+                
+                const main = document.getElementById('wishesMain');
+                const sub = document.getElementById('wishesSub');
+                main.style.display = 'block';
+                sub.style.display = 'block';
+                
+                gsap.from(main, {opacity: 0, scale: 0.8, duration: 1.5});
+                gsap.from(sub, {opacity: 0, y: 20, delay: 0.8, duration: 1});
+                
+                startFinale();
+            } else {
+                gsap.to(input, {x: 10, duration: 0.1, yoyo: true, repeat: 5});
+                input.value = "";
+                input.placeholder = "Try again...";
+            }
+        }
+
+        function startFinale() {
+            playSound('fireworks'); 
+            const end = Date.now() + (10 * 1000);
+            (function frame() {
+                confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#D4AF37', '#E6A5AC', '#FFFFFF'] });
+                confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#D4AF37', '#E6A5AC', '#FFFFFF'] });
+                if (Date.now() < end) requestAnimationFrame(frame);
+            }());
+        }
+
+        function playSound(type) { 
+            // Placeholder for audio. 
+            // In a real browser environment, audio context needs user gesture.
+        }
+
+        window.onload = () => {
+            initPuzzle();
+            // Ambient particles
+            for(let i=0; i<40; i++) {
+                let p = document.createElement('div');
+                p.classList.add('particle');
+                p.style.left = Math.random()*100 + 'vw';
+                p.style.top = Math.random()*100 + 'vh';
+                p.style.width = Math.random()*3 + 'px';
+                p.style.height = p.style.width;
+                document.getElementById('ambient-bg').appendChild(p);
+                gsap.to(p, { y: -100, opacity: Math.random()*0.4, duration: 5+Math.random()*10, repeat: -1, ease: "none", delay: Math.random()*5 });
+            }
+        };
+
+    </script>
+</body>
+</html>
